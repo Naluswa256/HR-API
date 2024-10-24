@@ -1,13 +1,12 @@
-import { Document, Schema, model, Model } from 'mongoose';
+import { Document, Schema, model, Model, ObjectId } from 'mongoose';
 import paginate, { PaginateModel } from './plugins/paginate.plugin';
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import { roles } from '@/config/roles';
 import toJSON from './plugins/toJSON.plugin';
+import { IShiftDocument } from './shift.model';
 
-export enum EventType {
-  LOGIN_FAILED_THRESHOLD = 'login_failed_threshold',
-}
+
 
 interface IAddress {
   currentAddress: string;
@@ -22,7 +21,7 @@ interface IContactInformation {
 
 interface IPersonalDetails {
   fullName: string;
-  dateOfBirth: Date; // Changed to Date
+  dateOfBirth: Date;
   gender: string;
   maritalStatus: string;
   nationality: string;
@@ -31,16 +30,17 @@ interface IPersonalDetails {
 
 interface IEmploymentDetails {
   employeeId: string;
+  shift?: ObjectId | IShiftDocument,
   department: string;
   jobTitle: string;
-  dateOfHire: Date; // Changed to Date
+  dateOfHire: Date;
   employmentType: string;
-  supervisorId: string; // Reference to another employee
+  supervisorId: string; 
   employeeStatus: string;
   employeeRole: string;
   workLocation: string;
-  contractType?: string; // Added field
-  endDate?: Date; // Changed to Date
+  contractType?: string; 
+  endDate?: Date;
 }
 
 interface ISalary {
@@ -94,19 +94,19 @@ interface IAttendanceAndLeave {
 }
 
 interface IPerformanceReview {
-  reviewDate: Date; // Changed to Date
+  reviewDate: Date;
   reviewScore: number;
   comments: string;
 }
 
 interface IDisciplinaryAction {
-  actionDate: Date; // Changed to Date
+  actionDate: Date;
   reason: string;
   notes: string;
 }
 
 interface IPromotion {
-  promotionDate: Date; // Changed to Date
+  promotionDate: Date;
   newTitle: string;
   newSalary: number;
 }
@@ -120,8 +120,8 @@ interface IPerformanceAndEvaluations {
 
 interface IContract {
   contractDocument: string;
-  startDate: Date; // Changed to Date
-  endDate: Date; // Changed to Date
+  startDate: Date;
+  endDate: Date;
 }
 
 interface IIdProof {
@@ -142,8 +142,8 @@ interface IEmployeeAgreement {
 
 interface IWorkPermit {
   permitNumber: string;
-  validityStartDate: Date; // Changed to Date
-  validityEndDate: Date; // Changed to Date
+  validityStartDate: Date;
+  validityEndDate: Date;
 }
 
 export interface IDocumentsAndCompliance {
@@ -164,20 +164,16 @@ interface IEmergencyContact {
 
 interface ISystemAccess {
   role: string;
-  lastLogin: Date; // Changed to Date
+  lastLogin: Date;
   failedAttempts: number;
   accountLocked: boolean;
   passwordHash: string;
   email: string;
+  createdBy?:string | null
+
 }
 
-// Interface for event log information
-interface IEventLog {
-  employeeId: mongoose.Types.ObjectId;
-  eventType: EventType;
-  eventDescription: string;
-  timestamp: Date; // Changed to Date
-}
+
 
 // Main Document Interface
 export interface IEmployee {
@@ -190,7 +186,6 @@ export interface IEmployee {
   documentsAndCompliance: IDocumentsAndCompliance;
   emergencyContact: IEmergencyContact;
   systemAndAccessInfo: ISystemAccess;
-  eventLogs: IEventLog[];
 }
 
 export interface IEmployeeDocument extends IEmployee, Document {
@@ -203,28 +198,7 @@ interface IEmployeeModel extends PaginateModel<IEmployeeDocument> {
   isEmailTaken(email: string, excludeUserId?: mongoose.Types.ObjectId): Promise<boolean>;
 }
 
-const eventLogSchema = new Schema<IEventLog>(
-  {
-    employeeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Employee', 
-    },
-    eventType: {
-      type: String,
-      enum: Object.values(EventType),
-    },
-    eventDescription: {
-      type: String,
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+
 
 // Mongoose Schema Definition
 const employeeSchema = new Schema<IEmployeeDocument>({
@@ -233,7 +207,7 @@ const employeeSchema = new Schema<IEmployeeDocument>({
     fullName: {
       type: String, required: true, default: ''
     },
-    dateOfBirth: { type: Date, default: null }, // Changed to Date
+    dateOfBirth: { type: Date, default: null },
     gender: { type: String, default: '' },
     maritalStatus: { type: String, default: '' },
     nationality: { type: String, default: '' },
@@ -249,14 +223,15 @@ const employeeSchema = new Schema<IEmployeeDocument>({
   employmentDetails: {
     department: { type: String, default: '' },
     jobTitle: { type: String, default: '' },
-    dateOfHire: { type: Date, default: null }, // Changed to Date
+    dateOfHire: { type: Date, default: null },
     employmentType: { type: String, default: '' },
     supervisorId: { type: String, default: '' },
     employeeStatus: { type: String, default: '' },
     employeeRole: { type: String, default: 'employee' },
     workLocation: { type: String, default: '' },
     contractType: { type: String, default: '' },
-    endDate: { type: Date, default: null }, // Changed to Date
+    shift: { type: Schema.Types.ObjectId, ref: 'Shift'},
+    endDate: { type: Date, default: null },
   },
   compensationAndBenefits: {
     salary: {
@@ -297,21 +272,21 @@ const employeeSchema = new Schema<IEmployeeDocument>({
   performanceAndEvaluations: {
     performanceReviews: [
       {
-        reviewDate: { type: Date, default: null }, // Changed to Date
+        reviewDate: { type: Date, default: null },
         reviewScore: { type: Number, default: 0 },
         comments: { type: String, default: '' },
       },
     ],
     disciplinaryActions: [
       {
-        actionDate: { type: Date, default: null }, // Changed to Date
+        actionDate: { type: Date, default: null },
         reason: { type: String, default: '' },
         notes: { type: String, default: '' },
       },
     ],
     promotions: [
       {
-        promotionDate: { type: Date, default: null }, // Changed to Date
+        promotionDate: { type: Date, default: null },
         newTitle: { type: String, default: '' },
         newSalary: { type: Number, default: 0 },
       },
@@ -321,8 +296,8 @@ const employeeSchema = new Schema<IEmployeeDocument>({
   documentsAndCompliance: {
     contract: {
       contractDocument: { type: String, default: '' },
-      startDate: { type: Date, default: null }, // Changed to Date
-      endDate: { type: Date, default: null }, // Changed to Date
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
     },
     idProof: {
       type: { type: String, default: '' },
@@ -343,8 +318,8 @@ const employeeSchema = new Schema<IEmployeeDocument>({
     ],
     workPermits: {
       permitNumber: { type: String, default: '' },
-      validityStartDate: { type: Date, default: null}, // Changed to Date
-      validityEndDate: { type: Date, default: null }, // Changed to Date
+      validityStartDate: { type: Date, default: null},
+      validityEndDate: { type: Date, default: null },
     },
     visaStatus: { type: String, default: '' },
   },
@@ -356,13 +331,13 @@ const employeeSchema = new Schema<IEmployeeDocument>({
   },
   systemAndAccessInfo: {
     role: { type: String, enum: roles, default: 'hrAdmin' },
-    lastLogin: { type: Date, default: null }, // Changed to Date
+    lastLogin: { type: Date, default: null },
     failedAttempts: { type: Number, default: 0 },
     accountLocked: { type: Boolean, default: false },
     passwordHash: { type: String, required: true },
     email: { type: String, required: true, unique: true },
+    createdBy:{type:String, default:null}
   },
-  eventLogs: [eventLogSchema],
 });
 
 // Plugins

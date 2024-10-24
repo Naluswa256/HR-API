@@ -7,7 +7,6 @@ import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import morgan from 'morgan';
 import mongoose, { connect, set, disconnect } from 'mongoose';
-import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { NODE_ENV, PORT, LOG_FORMAT, ORIGIN, CREDENTIALS } from '@config';
 import { dbConnection } from '@databases';
@@ -16,6 +15,7 @@ import errorMiddleware from '@middlewares/error.middleware';
 import { logger, stream } from '@utils/logger';
 import { jwtStrategy } from './config/passport';
 import passport from 'passport';
+import { swaggerDocs } from './docs/swagger';
 
 class App {
   public app: express.Application;
@@ -91,19 +91,7 @@ class App {
   }
 
   private initializeSwagger() {
-    const options = {
-      swaggerDefinition: {
-        info: {
-          title: 'REST API',
-          version: '1.0.0',
-          description: 'Example docs',
-        },
-      },
-      apis: ['swagger.yaml'],
-    };
-
-    const specs = swaggerJSDoc(options);
-    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
   }
   
   private initializeErrorHandling() {

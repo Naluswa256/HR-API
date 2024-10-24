@@ -63,6 +63,38 @@ class EmailService {
 
     await this.sendEmail(to, subject, text);
   }
+
+
+    // Send leave request approval email
+    public async sendLeaveApprovalEmail(to: string, leaveType: string, startDate: Date, endDate: Date): Promise<void> {
+      const subject = 'Leave Request Approved';
+      const text = `Dear employee,\nYour ${leaveType} leave request for the period ${startDate.toISOString()} to ${endDate.toISOString()} has been approved.\nPlease contact HR for further details.`;
+      
+      await this.sendEmail(to, subject, text);
+    }
+  
+    // Send leave request rejection email
+    public async sendLeaveRejectionEmail(to: string, leaveType: string, reason: string): Promise<void> {
+      const subject = 'Leave Request Rejected';
+      const text = `Dear employee,\nYour ${leaveType} leave request has been rejected for the following reason: ${reason}.\nPlease contact HR if you have any questions.`;
+      
+      await this.sendEmail(to, subject, text);
+    }
+
+    public async sendOvertimeApprovalEmail(to: string, overtimeDate: Date, hours: number): Promise<void> {
+      const subject = 'Overtime Request Approved';
+      const text = `Dear employee,\nYour overtime request for ${overtimeDate.toISOString()} for ${hours} hour(s) has been approved.\nThank you for your hard work!`;
+      
+      await this.sendEmail(to, subject, text);
+    }
+  
+    // Send rejected overtime request email
+    public async sendOvertimeRejectionEmail(to: string, reason: string): Promise<void> {
+      const subject = 'Overtime Request Rejected';
+      const text = `Dear employee,\nYour overtime request has been rejected for the following reason: ${reason}.\nPlease contact HR if you have any questions.`;
+      
+      await this.sendEmail(to, subject, text);
+    }
 }
 
-export default new EmailService();
+export const emailService = new EmailService();

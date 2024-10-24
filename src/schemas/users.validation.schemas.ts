@@ -4,15 +4,20 @@ const objectId = z.string().refine((value) => mongoose.Types.ObjectId.isValid(va
     message: 'Invalid ObjectId format',
   });
 // Get Users validation schema
-const getUsers = {
+const fetchMany = {
   query: z.object({
-    name: z.string().optional(),
-    role: z.string().optional(),
     sortBy: z.string().optional(),
-    limit: z.number().int().optional(),
-    page: z.number().int().optional(),
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : undefined)), // Transform string to number
+    page: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : undefined)), // Transform string to number
   }),
 };
+
 
 // Get User validation schema
 const getUser ={
@@ -34,7 +39,7 @@ const deleteUser = {
   }),
 };
  export {
-  getUsers,
+  fetchMany,
   getUser,
   deleteUser,
 };

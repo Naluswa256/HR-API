@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-
+import { v4 as uuidv4 } from 'uuid';
 /**
  * @method isEmpty
  * @param {String | Number | Object} value
@@ -20,9 +20,12 @@ export const isEmpty = (value: string | number | object): boolean => {
   }
 };
 
-
+export const employeeIdRegex = /^Emp[a-f0-9]{8}$/;
 
 export function generateUniqueEmployeeId() {
   const uniqueId = crypto.randomBytes(4).toString('hex'); 
   return `Emp${uniqueId}`;
 }
+export const generateDepartmentCode = (): string => {
+  return `DEP-${uuidv4().split('-')[0].toUpperCase()}`; // Generate a unique code, e.g., "DEP-1234ABCD"
+};

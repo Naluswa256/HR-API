@@ -8,11 +8,14 @@ import { Schema } from 'mongoose';
 
 // Type for the deleteAtPath function
 const deleteAtPath = (obj: Record<string, any>, path: string[], index: number): void => {
+  if (!obj || typeof obj !== 'object') return; // Ensure obj is valid before accessing
   if (index === path.length - 1) {
-    delete obj[path[index]];
+    delete obj[path[index]]; // Only delete if it exists
     return;
   }
-  deleteAtPath(obj[path[index]], path, index + 1);
+  if (obj[path[index]]) {  // Ensure the next path exists
+    deleteAtPath(obj[path[index]], path, index + 1);
+  }
 };
 
 // Type for the transform function
@@ -54,7 +57,9 @@ const toJSON = (schema: ToJSONSchema): void => {
       delete ret.__v;
       delete ret.createdAt;
       delete ret.updatedAt;
-      delete ret.systemAndAccessInfo.passwordHash;
+      if (ret.systemAndAccessInfo && ret.systemAndAccessInfo.passwordHash) {
+        delete ret.systemAndAccessInfo.passwordHash;
+      }
 
       if (transform) {
         return transform(doc, ret, options);

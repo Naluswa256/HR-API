@@ -7,7 +7,9 @@ import pick from "@/utils/pick";
 import multer, { FileFilterCallback } from "multer";
 import path from "path";
 import { EmployeeSearchQuery } from "@/schemas/searchQuery.validation.schemas";
-const createResponse = (code: number, message: string, data?: any) => {
+import * as employeeValidation from '@/schemas/employee.validation.schemas';
+import validate from "@/middlewares/validation.middleware";
+export const createResponse = (code: number, message: string, data?: any) => {
   return {
     code,
     message,
@@ -52,18 +54,33 @@ const upload = multer({
 class UserController {
   // Get multiple users
   public getUsers = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const filter: Record<string, any> = {};
+    if (!req.user || !req.user.employeeId) {
+      res.status(httpStatus.UNAUTHORIZED).send({
+        message: 'You are not authorized to view users.',
+      });
+      return;
+    }
+  
+    const {employeeId} = req.user;
+  
+    // Add employeeId to filter
+    const filter: Record<string, any> = {
+      'systemAndAccessInfo.createdBy': employeeId,
+    };
+  
     const options: Record<string, any> = pick(req.query, ['sortBy', 'limit', 'page']);
     const result = await usersService.queryUsers(filter, options);
     res.json(createResponse(httpStatus.OK, 'Users retrieved successfully', result));
   });
 
   // Delete a user
-  public deleteUser = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const userId: string = req.params.userId;
-    await usersService.deleteUserByEmployeeId(userId);
-    res.json(createResponse(httpStatus.OK, `Successfully deleted Employee with ID ${userId}`))
-  });
+    // Delete a user
+    public deleteUser = catchAsync(async (req: Request, res: Response): Promise<void> => {
+      const { userId } = req.params; 
+      const {employeeId} = req.user;
+      await usersService.deleteUserByEmployeeId(userId, employeeId);
+      res.json(createResponse(httpStatus.OK, `Successfully deleted Employee with ID ${userId}`));
+    });
 
   // Get a single user by ID
   public getUser = catchAsync(async (req: Request, res: Response): Promise<void> => {
@@ -74,7 +91,8 @@ class UserController {
 
   public searchEmployees = catchAsync(async (req: Request, res: Response) => {
       const validatedQuery: EmployeeSearchQuery = req.query;
-      const result = await usersService.searchEmployees(validatedQuery);
+      const {employeeId} = req.user;
+      const result = await usersService.searchEmployees(validatedQuery, employeeId);
       res.status(httpStatus.OK).json(result);
   });
 
@@ -85,7 +103,17 @@ class UserController {
     catchAsync(async (req: Request, res: Response): Promise<void> => {
       const employeeData:Partial<IEmployee> = req.body;
       const files = req.files;
-      const newEmployee = await usersService.createEmployee(employeeData, files);
+      const user = req.user; 
+    
+    if (!user || !user.employeeId) {
+      res.status(httpStatus.UNAUTHORIZED).send({
+        message: 'You are not authorized to create an employee.'
+      });
+      return;
+    }
+    
+    const createdBy = user.employeeId; 
+      const newEmployee = await usersService.createEmployee(employeeData, files, createdBy);
       res.status(httpStatus.CREATED).send(createResponse(httpStatus.CREATED, 'Employee created successfully', newEmployee));
     })
   ];
@@ -94,11 +122,13 @@ class UserController {
   public updateEmployee = [
     // Middleware for file upload using Multer
     upload,
+    validate(employeeValidation.UpdateEmployeeSchema), 
     catchAsync(async (req: Request, res: Response): Promise<void> => {
       const employeeId: string = req.params.userId;
       const updateData:Partial<IEmployee> = req.body;
       const files = req.files;
-      const updatedEmployee = await usersService.updateEmployee(employeeId, updateData, files);
+      const {employeeId:hrAdminId} = req.user;
+      const updatedEmployee = await usersService.updateEmployee(employeeId, updateData, files, hrAdminId);
       res.status(httpStatus.OK).send(createResponse(httpStatus.OK, 'Employee updated successfully', updatedEmployee));
     })
   ];

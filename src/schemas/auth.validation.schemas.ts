@@ -37,25 +37,25 @@ export type RegisterInput = z.infer<typeof registerSchema.body>;
 export type LoginInput = z.infer<typeof loginSchema.body>;
 const logout = {
   body: z.object({
-    refreshToken: z.string().nonempty(),
+    refreshToken: z.string(),
   }),
 };
 
 const refreshTokensSchema = {
   body: z.object({
-    refreshToken: z.string().nonempty(),
+    refreshToken: z.string(),
   }),
 };
 
 const forgotPasswordSchema = {
   body: z.object({
-    email: z.string().email().nonempty(),
+    email: z.string().email(),
   }),
 };
 
 const resetPasswordschema = {
   query: z.object({
-    token: z.string().nonempty(),
+    token: z.string(),
   }),
   body: z.object({
     password: z
@@ -68,7 +68,7 @@ const resetPasswordschema = {
 
 const verifyEmail = {
   query: z.object({
-    token: z.string().nonempty(),
+    token: z.string(),
   }),
 };
 

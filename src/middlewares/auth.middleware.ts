@@ -13,7 +13,7 @@ interface AuthRequest extends Request {
 // Define the verifyCallback function
 const verifyCallback = (req: AuthRequest, resolve: () => void, reject: (error: ApiError) => void, requiredRights: Permission[]) => async (err: any, user: IEmployeeDocument | false, info: any) => {
   if (err || info || !user) {
-    return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
+    return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized access - No token provided or invalid token'));
   }
 
   req.user = user; // Attach the user to the request
@@ -23,7 +23,7 @@ const verifyCallback = (req: AuthRequest, resolve: () => void, reject: (error: A
     const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));
     
     if (!hasRequiredRights && req.params.userId !== user.id) {
-      return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+      return reject(new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access this resource'));
     }
   }
 

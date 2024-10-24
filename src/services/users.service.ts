@@ -29,7 +29,25 @@ const initializeDocumentsAndCompliance = (data?: Partial<IDocumentsAndCompliance
     validityEndDate: data?.workPermits?.validityEndDate || null, 
   },
 });
-
+const checkAndInitializeDocumentsAndCompliance = (
+  data?: Partial<IDocumentsAndCompliance>
+): IDocumentsAndCompliance => {
+  // Check if required fields are present and valid, else initialize them
+  if (
+    !data ||
+    !data.contract ||
+    !data.idProof ||
+    !data.taxDocuments ||
+    !data.employeeAgreements ||
+    !data.workPermits
+  ) {
+    // Initialize using the provided partial data
+    return initializeDocumentsAndCompliance(data);
+  }
+  
+  // Otherwise, return the data as is
+  return data as IDocumentsAndCompliance;
+};
 
 class UserService {
   private users = Employee;
@@ -37,7 +55,6 @@ class UserService {
   public async queryUsers(filter: Record<string, any>, options: PaginateOptions): Promise<QueryResult<Document>> {
     return this.users.paginate(filter, options);
   }
-
   public async findUserByEmployeeId(employeeId: string): Promise<IEmployeeDocument> {
     if (!employeeId) throw new ApiError(HttpStatus.BAD_REQUEST, "EmployeeId is empty");
 
@@ -77,7 +94,7 @@ class UserService {
     return createUserData;
   }
 
-  public async createEmployee(userData: Partial<IEmployee>, files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }): Promise<IEmployeeDocument> {
+  public async createEmployee(userData: Partial<IEmployee>, files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }, createdBy: string): Promise<IEmployeeDocument> {
     if (!userData) throw new ApiError(HttpStatus.BAD_REQUEST, "User data is empty");
 
     const employeeId = generateUniqueEmployeeId();
@@ -95,51 +112,94 @@ class UserService {
         lastLogin: undefined,
         failedAttempts: 0,
         accountLocked: false,
+        createdBy: createdBy,
       },
     };
 
     // Handle file uploads if files are provided
     if (files) {
-      this.processFiles(files, createUserData);
+      this.processFiles(files, createUserData.documentsAndCompliance);
     }
 
     const newUser = await this.users.create(createUserData);
     return newUser;
   }
 
-  public async updateEmployee(employeeId: string, updateData: Partial<IEmployee>, files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }): Promise<IEmployeeDocument> {
-    const employee = await this.findUserByEmployeeId(employeeId);
+  public async updateEmployee(employeeId: string, updateData: Partial<IEmployee>, files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }, userId: string): Promise<IEmployeeDocument> {
+    if (!employeeId) throw new ApiError(HttpStatus.BAD_REQUEST, "EmployeeId is required");
 
-    // Update employee details
-    if (updateData.personalDetails) employee.personalDetails = { ...employee.personalDetails, ...updateData.personalDetails };
-    if (updateData.employmentDetails) employee.employmentDetails = { ...employee.employmentDetails, ...updateData.employmentDetails };
-    if (updateData.compensationAndBenefits) employee.compensationAndBenefits = { ...employee.compensationAndBenefits, ...updateData.compensationAndBenefits };
-
-    // Ensure documentsAndCompliance exists in updateData
-    employee.documentsAndCompliance = initializeDocumentsAndCompliance(employee.documentsAndCompliance);
-    updateData.documentsAndCompliance = initializeDocumentsAndCompliance(updateData.documentsAndCompliance);
-
+    // Check if at least one field is provided
+    if (Object.keys(updateData).length === 0) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, "At least one field must be updated");
+  }
+  
+    // Create an object to store updated fields
+    const updateFields: Partial<IEmployee> = {};
+  
+    // Add updated personal details if provided
+    if (updateData.personalDetails) {
+      updateFields.personalDetails = { ...updateData.personalDetails };
+    }
+  
+    // Add updated employment details if provided
+    if (updateData.employmentDetails) {
+      updateFields.employmentDetails = { ...updateData.employmentDetails };
+    }
+  
+    // Add updated compensation and benefits if provided
+    if (updateData.compensationAndBenefits) {
+      updateFields.compensationAndBenefits = { ...updateData.compensationAndBenefits };
+    }
+  
+    // Add updated emergency contact if provided
+    if (updateData.emergencyContact) {
+      updateFields.emergencyContact = { ...updateData.emergencyContact };
+    }
+  
+    // Add updated documents and compliance if provided
+    if (updateData.documentsAndCompliance) {
+      updateFields.documentsAndCompliance = {
+        ...initializeDocumentsAndCompliance(updateData.documentsAndCompliance), // Ensure all fields are correctly initialized
+        ...updateData.documentsAndCompliance // Override with provided fields
+      };
+    }
+  
     // Handle file uploads if files are provided
     if (files) {
-      this.processFiles(files, updateData);
+     
+      const updateFieldsWithFiles = {
+        documentsAndCompliance: checkAndInitializeDocumentsAndCompliance(updateFields.documentsAndCompliance),
+      };
+      this.processFiles(files, updateFieldsWithFiles.documentsAndCompliance!);
+       // Merge the fields updated by file processing into the main updateFields object
+    updateFields.documentsAndCompliance = {
+      ...updateFields.documentsAndCompliance,
+      ...updateFieldsWithFiles.documentsAndCompliance, // Add processed files into documentsAndCompliance
+    };
     }
-
-    // Merge documentsAndCompliance data
-    employee.documentsAndCompliance = { ...employee.documentsAndCompliance, ...updateData.documentsAndCompliance };
-    if (updateData.emergencyContact) employee.emergencyContact = { ...employee.emergencyContact, ...updateData.emergencyContact };
-
-    await employee.save();
-    return employee;
+    console.log(`object for fields being updated ${JSON.stringify(updateFields, null, 2)}`);
+    // Use findOneAndUpdate to update the document
+    const updatedEmployee = await this.users.findOneAndUpdate(
+      { employeeId, 'systemAndAccessInfo.createdBy': userId },
+      { $set: updateFields }, // Set only the updated fields
+      { new: true } // Return the updated document
+    );
+  
+    if (!updatedEmployee) throw new ApiError(HttpStatus.NOT_FOUND,"Employee not found or you do not have permission to update this user");
+  
+    return updatedEmployee;
   }
+  
 
-  private processFiles(files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }, userData: Partial<IEmployee>) {
+
+  private processFiles(files: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] }, documentsAndCompliance: IDocumentsAndCompliance) {
     if (Array.isArray(files) && files.length > 0) {
-      files.forEach((file) => this.handleFileMapping(file, userData));
+      files.forEach((file) => this.handleFileMapping(file, documentsAndCompliance));
     } else if (typeof files === 'object') {
       Object.keys(files).forEach((fieldname) => {
         const fileArray = files[fieldname];
         if (fileArray.length > 0) {
-          fileArray.forEach((file: Express.Multer.File) => this.handleFileMapping(file, userData));
+          fileArray.forEach((file: Express.Multer.File) => this.handleFileMapping(file, documentsAndCompliance));
         }
       });
     }
@@ -147,12 +207,8 @@ class UserService {
 
 
 
-  public handleFileMapping(file: Express.Multer.File, userData: Partial<IEmployee>) {
+  public handleFileMapping(file: Express.Multer.File,  documentsAndCompliance: IDocumentsAndCompliance) {
     const { fieldname, path: filePath } = file;
-  
-    userData.documentsAndCompliance = initializeDocumentsAndCompliance(userData.documentsAndCompliance);
-  
-    const docs = userData.documentsAndCompliance;
   
     // Construct the file URL
     const domain = DOMAIN_URL || 'http://localhost:3000'; 
@@ -160,19 +216,19 @@ class UserService {
   
     switch (fieldname) {
       case "contractDocument":
-        docs.contract.contractDocument = fileUrl; 
+        documentsAndCompliance.contract.contractDocument = fileUrl; 
         break;
       case "idProof":
-        docs.idProof.documentScan = fileUrl; 
+        documentsAndCompliance.idProof.documentScan = fileUrl; 
         break;
       case "taxDocument":
-        docs.taxDocuments.push({ year: "", document: fileUrl }); 
+        documentsAndCompliance.taxDocuments.push({ year: "", document: fileUrl }); 
         break;
       case "employeeAgreement":
-        docs.employeeAgreements.push({ agreementType: '', agreementDocument: fileUrl }); 
+        documentsAndCompliance.employeeAgreements.push({ agreementType: '', agreementDocument: fileUrl }); 
         break;
       case "workPermit":
-        docs.workPermits.permitNumber = fileUrl; 
+        documentsAndCompliance.workPermits.permitNumber = fileUrl; 
         break;
       default:
         break;
@@ -180,16 +236,16 @@ class UserService {
   }
   
 
-  public async deleteUserByEmployeeId(employeeId: string): Promise<IEmployeeDocument | null> {
-    const deletedUser = await this.users.findOneAndDelete({ employeeId });
-    if (!deletedUser) throw new ApiError(HttpStatus.NOT_FOUND, "User doesn't exist");
+  public async deleteUserByEmployeeId(employeeId: string, userId:string): Promise<IEmployeeDocument | null> {
+    const deletedUser = await this.users.findOneAndDelete({ employeeId,'systemAndAccessInfo.createdBy': userId });
+    if (!deletedUser) throw new ApiError(HttpStatus.NOT_FOUND,"User doesn't exist or you do not have permission to delete this user");
 
     return deletedUser;
   }
   
 
-  public async searchEmployees (criteria: EmployeeSearchQuery){
-    const query = buildQuery(criteria);
+  public async searchEmployees (criteria: EmployeeSearchQuery,userId: string){
+    const query = buildQuery(criteria, userId);
 
     // Pagination and sorting
     const page = criteria.page || 1;
@@ -211,7 +267,7 @@ class UserService {
     .limit(limit)
     .skip((page - 1) * limit)
     .exec();
-    console.log(employees);
+
     const totalCount = await Employee.countDocuments(query);
 
     const totalPages = Math.ceil(totalCount / limit);
@@ -228,7 +284,7 @@ class UserService {
 };  
 }
 
-const buildQuery = (criteria: EmployeeSearchQuery) => {
+const buildQuery = (criteria: EmployeeSearchQuery, userId:string) => {
   const query: any = {};
 
   const addDateFilter = (field: string, from?: string, to?: string) => {
@@ -241,6 +297,7 @@ const buildQuery = (criteria: EmployeeSearchQuery) => {
 
   // Default role filter
   query['systemAndAccessInfo.role'] = 'employee';
+  query['systemAndAccessInfo.createdBy'] = userId; 
 
   // Helper function to add regex queries
   const addRegexQuery = (field: string, value: string | undefined) => {
@@ -291,7 +348,6 @@ const buildQuery = (criteria: EmployeeSearchQuery) => {
           query['compensationAndBenefits.salary.baseSalary'].$lte = criteria.salaryMax;
       }
   }
-  console.log('Final Query:', query);
   return query;
 
 
