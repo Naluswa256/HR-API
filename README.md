@@ -1,5 +1,5 @@
 
-```markdown
+
 # HR Dashboard Management API
 
 This repository contains a REST API for managing HR operations such as attendance, leave requests, overtime, shifts, user authentication, and department management. The API is built using Node.js, TypeScript, Express, and MongoDB, providing a robust backend for HR systems with a focus on security, scalability, and performance.
